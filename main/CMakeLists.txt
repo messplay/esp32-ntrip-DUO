@@ -11,7 +11,9 @@ idf_component_register(SRCS "main.c"
 		"web_server.c"
 		"wifi.c"
 		"interface/ntrip_server.c"
-		"interface/ntrip_server_2.c"
+                "interface/ntrip_server_2.c"
+
+                "sd_logger.c"
 
 		"protocol/nmea.c"
         INCLUDE_DIRS "include")

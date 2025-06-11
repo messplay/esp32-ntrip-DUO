@@ -30,6 +30,7 @@
 #include "config.h"
 #include "util.h"
 #include "uart.h"
+#include "sd_logger.h"
 
 static const char *TAG = "NTRIP_SERVER";
 
@@ -74,6 +75,7 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
         vTaskResume(server_task);
     } else {
         stream_stats_increment(stream_stats, 0, sent);
+        sd_logger_write(buffer, length);
     }
 }
 

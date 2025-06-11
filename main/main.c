@@ -36,6 +36,7 @@
 
 #include "uart.h"
 #include "interface/ntrip.h"
+#include "sd_logger.h"
 #include "tasks.h"
 
 static const char *TAG = "MAIN";
@@ -126,6 +127,7 @@ void app_main()
 
     web_server_init();
 
+    sd_logger_init();
 
     ntrip_server_init();
     ntrip_server_2_init();

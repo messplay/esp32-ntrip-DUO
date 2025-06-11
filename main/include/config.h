@@ -94,6 +94,9 @@ typedef struct config_item {
 #define KEY_CONFIG_NTRIP_CLIENT_USERNAME "ntr_cli_user"
 #define KEY_CONFIG_NTRIP_CLIENT_PASSWORD "ntr_cli_pass"
 
+// SD logging
+#define KEY_CONFIG_SD_LOG_ACTIVE "sd_log_active"
+
 // UART
 #define KEY_CONFIG_UART_NUM "uart_num"
 #define KEY_CONFIG_UART_TX_PIN "uart_tx_pin"
