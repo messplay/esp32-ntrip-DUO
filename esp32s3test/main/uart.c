@@ -25,7 +25,6 @@
 
 #include "uart.h"
 #include "config.h"
-#include "sd_logger.h"
 #include "tasks.h"
 
 static const char *TAG = "UART";
@@ -108,8 +107,6 @@ static void uart_task(void *ctx) {
         }
 
         stream_stats_increment(stream_stats, len, 0);
-
-        sd_logger_write(buffer, len); // Escribir datos en la tarjeta SD
 
         esp_event_post(UART_EVENT_READ, len, &buffer, len, portMAX_DELAY);
     }
