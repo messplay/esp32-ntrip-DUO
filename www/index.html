@@ -242,8 +242,46 @@
                     if ($this.data('formatted')) $this.trigger('change');
                 });
 
+                // Specific handling for sd_log_active switch, as it's also controlled by /sdlog/status
+                if (typeof data['sd_log_active'] !== 'undefined') {
+                    sdLogSwitch.prop('checked', data['sd_log_active'] == '1');
+                }
+
                 checkDisableIfs();
             });
+
+            sdLogSwitch.on('change', function() {
+                var enabled = $(this).is(':checked');
+                $.post('sdlog/toggle', JSON.stringify({ active: enabled }))
+                    .done(function(response) {
+                        if (response.sd_log_active !== undefined) {
+                            sdLogSwitch.prop('checked', response.sd_log_active); // Update switch based on actual state from server
+                            updateSdLogStatusTexts(response.sd_log_active, sd_logger_is_card_mounted_cached); // sd_logger_is_card_mounted_cached will be updated by status poll
+                        }
+                    })
+                    .fail(function() {
+                        // Revert switch on failure or show error
+                        sdLogSwitch.prop('checked', !enabled);
+                        alert("Failed to toggle SD logging.");
+                    });
+            });
+
+            function updateSdLogStatusTexts(isActive, isMounted) {
+                if (!isMounted) {
+                    sdCardMountStatusText.text("SD card not detected or not usable.").removeClass('text-success').addClass('text-danger');
+                    sdLogStatusText.text("Disabled (No SD Card)");
+                    sdLogSwitch.prop('disabled', true);
+                     // Visually disable the card body as well if card not mounted
+                    sdLogCard.find('.card-body').addClass('disabled');
+                    sdLogSwitch.prop('checked', false); // Ensure switch is off if no card
+                } else {
+                    sdCardMountStatusText.text("SD card mounted.").removeClass('text-danger').addClass('text-success');
+                    sdLogStatusText.text(isActive ? "Active" : "Inactive");
+                    sdLogSwitch.prop('disabled', false);
+                    sdLogCard.find('.card-body').removeClass('disabled');
+                }
+            }
+            var sd_logger_is_card_mounted_cached = false; // To help updateSdLogStatusTexts between calls
 
             var wifiRssiColorClass = function(rssi) {
                 if (rssi > -50) {
@@ -292,6 +330,7 @@
             };
 
             var statusUpdate = function() {
+                // Update main status
                 $.ajax({
                     url: 'status',
                     dataType: 'json',
@@ -350,10 +389,34 @@
                             .append($('<span>', {class: 'text-' + wifiRssiColorClass(wifi.sta.rssi), text: wifi.sta.rssi + "dBm"}));
                     }
                 }).always(function() {
-                    setTimeout(statusUpdate, 2500);
+                    // Main status updated, now schedule next full update
+                    // setTimeout(statusUpdate, 2500); // This will be handled by the sdLogStatusPoll
+                });
+                // No always() here, sdLogStatusPoll will schedule the next statusUpdate
+            };
+
+            var sdLogStatusPoll = function() {
+                $.ajax({
+                    url: 'sdlog/status',
+                    dataType: 'json',
+                    timeout: 2000
+                }).done(function(data) {
+                    sd_logger_is_card_mounted_cached = data.sd_card_mounted; // Cache for immediate use by toggle
+                    sdLogSwitch.prop('checked', data.sd_log_active);
+                    updateSdLogStatusTexts(data.sd_log_active, data.sd_card_mounted);
+                }).fail(function() {
+                    sdLogStatusText.text("Error fetching status");
+                    sdCardMountStatusText.text("");
+                    sdLogSwitch.prop('disabled', true); // Disable if status is unknown
+                }).always(function() {
+                    // After sdlog status is fetched (or fails), then call the main statusUpdate
+                    statusUpdate(); // Fetch general status
+                    setTimeout(sdLogStatusPoll, 2500); // Schedule next poll for sdlog and then general status
                 });
             };
-            statusUpdate();
+
+            // Initial calls
+            sdLogStatusPoll(); // This will call statusUpdate() after it completes.
 
             // WiFi Station networks list
             var wifiNetworksScanButton = form.find('.wifi-networks-scan');
@@ -405,6 +468,12 @@
 
             // WiFi Station IP configuration
             var wifiStaSubnetInput = form.find('input[name="w_sta_subnet"]');
+
+            // SD Log elements
+            var sdLogCard = $('#sd-log-card');
+            var sdLogSwitch = $('#switch-sd-log');
+            var sdLogStatusText = $('.sd-log-status-text');
+            var sdCardMountStatusText = $('.sd-card-mount-status');
 
             // WiFi SoftAP IP configuration
             var wifiApGwInputs = form.find('input[name="w_ap_gw"]');
@@ -675,6 +744,20 @@
                                     <input type="password" name="adm_pass" data-disable-if="select[name='adm_auth'] > option[value!='2']" data-disable-if-condition=":selected" class="form-control" maxlength="64" required/>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="card mb-3" id="sd-log-card">
+                        <div class="card-header">
+                            SD Card Logging
+                            <small class="sd-log-status-text text-muted ml-2"></small>
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="sd_log_active" value="1" class="custom-control-input" id="switch-sd-log">
+                                <label class="custom-control-label" for="switch-sd-log"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">Enable to save incoming serial (UART) data to the SD card. Files are created daily, named YYYYMMDD.rtcm.</p>
+                            <small class="sd-card-mount-status text-muted"></small>
                         </div>
                     </div>
                     <!--

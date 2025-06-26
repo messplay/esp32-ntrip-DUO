@@ -34,6 +34,7 @@
 #include <esp32/rom/crc.h>
 #include <lwip/sockets.h>
 #include "web_server.h"
+#include "sd_logger.h" // For sd_logger_is_active and sd_logger_set_active
 
 // Max length a file path can have on storage
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
@@ -710,6 +711,58 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     return json_response(req, root);
 }
 
+static esp_err_t sd_log_status_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "sd_log_active", sd_logger_is_active());
+    cJSON_AddBoolToObject(root, "sd_card_mounted", sd_logger_is_card_mounted()); // Use getter
+
+    return json_response(req, root);
+}
+
+static esp_err_t sd_log_toggle_post_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
+    int ret = httpd_req_recv(req, buffer, BUFFER_SIZE - 1);
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+    buffer[ret] = '\0';
+
+    cJSON *root_req = cJSON_Parse(buffer);
+    if (!root_req) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *active_json = cJSON_GetObjectItem(root_req, "active");
+    if (!cJSON_IsBool(active_json)) {
+        cJSON_Delete(root_req);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing/invalid 'active' field");
+        return ESP_FAIL;
+    }
+
+    bool new_state = cJSON_IsTrue(active_json);
+    sd_logger_set_active(new_state);
+
+    // Also update the persistent config if the user wants this behavior from the toggle
+    // For now, the toggle only affects runtime. Persistent save is via main /config form.
+    // If we wanted to save persistently:
+    // config_set_bool1(KEY_CONFIG_SD_LOG_ACTIVE, new_state);
+    // config_commit(); // Careful: this might be slow or wear NVS if toggled rapidly
+
+    cJSON_Delete(root_req);
+
+    cJSON *root_resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root_resp, "success", true);
+    cJSON_AddBoolToObject(root_resp, "sd_log_active", sd_logger_is_active());
+    return json_response(req, root_resp);
+}
+
 static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
     if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
 
@@ -768,6 +821,10 @@ static httpd_handle_t web_server_start(void)
         register_uri_handler(server, "/heap_info", HTTP_GET, heap_info_get_handler);
 
         register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler);
+
+        // SD Card logging specific handlers
+        register_uri_handler(server, "/sdlog/status", HTTP_GET, sd_log_status_get_handler);
+        register_uri_handler(server, "/sdlog/toggle", HTTP_POST, sd_log_toggle_post_handler);
 
         register_uri_handler(server, "/*", HTTP_GET, file_get_handler);
     }
