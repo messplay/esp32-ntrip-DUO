@@ -31,7 +31,7 @@
 #include <esp_ota_ops.h>
 #include <esp_wifi_ap_get_sta_list.h>
 #include <stream_stats.h>
-#include <esp32/rom/crc.h>
+#include <esp32s3/rom/crc.h>
 #include <lwip/sockets.h>
 #include <esp_timer.h>
 #include "web_server.h"
