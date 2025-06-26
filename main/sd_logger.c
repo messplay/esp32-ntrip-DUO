@@ -50,7 +50,7 @@ void sd_logger_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_SD_LOG_ACTIVE))) return;
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
+    sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
             .format_if_mount_failed = false,
             .max_files = 3
